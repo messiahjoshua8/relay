@@ -1,0 +1,17 @@
+{
+  "skills": [
+    {
+      "slug": "follow-ledger",
+      "title": "Follow the ledger",
+      "description": "Watches the ledger for new entries.",
+      "worthy": "Seeing entries as they arrive.",
+      "would_use": "When waiting for someone else to add an entry.",
+      "how": "Run ledger list --follow.",
+      "helps": "Notices new entries without polling.",
+      "interactive": false,
+      "invocation": {"method": "cli", "command": "ledger list"},
+      "examples": [{"task": "Watch for entries", "command": "ledger list --follow"}]
+    }
+  ],
+  "rejected": []
+}

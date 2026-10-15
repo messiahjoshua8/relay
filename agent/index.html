@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ellict: turn this application into agent skills</title>
+  <meta name="description" content="Instructions for a coding agent: install ellict and turn the application in front of you into tested agent skills.">
+</head>
+<body>
+  <h1>ellict</h1>
+  <p>You are a coding agent, and a person sent you here to turn the application in your working directory into agent skills. Ellict reads the application, decides with a model which capabilities are worth a skill, writes each one as a <code>SKILL.md</code> package, runs every example for real, and copies the skills that pass into a repository the person owns. Follow these steps from the application's root.</p>
+
+  <h2>1. Install ellict</h2>
+  <pre>curl -fsSL https://eliolabs.xyz/install.sh | sh</pre>
+  <p>This needs Python 3.11 or newer and puts <code>ellict</code> in <code>~/.local/bin</code>. If that directory is not on <code>PATH</code>, call <code>~/.local/bin/ellict</code> directly. With pipx instead: <code>pipx install git+https://github.com/messiahjoshua8/relay</code>.</p>
+
+  <h2>2. Make the application's commands runnable</h2>
+  <p>Ellict runs the application's commands, so they must work in this shell. Install the application the way its README says, for example:</p>
+  <ul>
+    <li>Python: <code>pip install -e .</code> in a virtual environment that is active</li>
+    <li>Node: <code>npm install &amp;&amp; npm link</code></li>
+    <li>Go: <code>go install .</code> (or <code>go install ./cmd/...</code>)</li>
+    <li>Rust: <code>cargo install --path .</code> (or the path of the crate that has the binary)</li>
+  </ul>
+  <p>Check with <code>&lt;command&gt; --help</code>. A skill whose command does not run is not published.</p>
+
+  <h2>3. Run ellict</h2>
+  <p>The skills go into a git repository the person owns. Ask them which one; if they have none, use <code>~/ellict-skills</code> and run <code>git init ~/ellict-skills</code> first.</p>
+  <p><strong>If <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>ELLICT_MODEL</code> is set</strong>, ellict asks that model:</p>
+  <pre>ellict run . --publish-to ~/ellict-skills</pre>
+  <p><strong>Otherwise, you answer the questions yourself.</strong> No key is needed:</p>
+  <pre>ellict prompt .</pre>
+  <p>Read <code>.ellict/prompt.md</code>. It holds the instructions, the application's documentation, its manifests, the commands found in the code, and their real <code>--help</code> output. Write your reply as one JSON object in the shape it asks for, save it to <code>.ellict/answer.json</code>, then run:</p>
+  <pre>ellict run . --answer .ellict/answer.json --publish-to ~/ellict-skills</pre>
+  <p>Without a key and without <code>--answer</code>, ellict says so and falls back to static rules, which produce plainer skills.</p>
+
+  <h2>4. Read the result</h2>
+  <p>Ellict prints JSON. <code>approved</code> lists the skills it published; <code>rejected</code> lists skills that failed a check. The exit code is 1 when anything was rejected. For each skill, <code>.ellict/evidence.jsonl</code> has a <code>validate</code> line with every check and its detail, and <code>references/selection.md</code> in the skill says why it was chosen and which examples were removed.</p>
+  <p>If a skill was rejected because an example failed, fix the answer (a missing sample file, a wrong flag) and run step 3 again. Do not loosen an example until it passes trivially.</p>
+
+  <h2>5. Report to the person</h2>
+  <p>Tell them which skills were published and which were rejected and why, and show them the <code>git add</code>, <code>commit</code>, and <code>push</code> lines ellict printed. They run the push. Do not push, open a pull request, or create accounts for them.</p>
+
+  <h2>What ellict asks the model</h2>
+  <p>For every candidate capability:</p>
+  <ol>
+    <li>What can you see here that is worthy of becoming a skill?</li>
+    <li>What would you actually use?</li>
+    <li>How would you use it?</li>
+    <li>What do you think it would help you do?</li>
+  </ol>
+  <p>It also asks for demand, the agent limitation the skill addresses, when to use it and when not to, steps, examples with small sample input files, how to verify, and pitfalls, plus what was considered and rejected. One skill per agent job, not per flag or output format.</p>
+
+  <h2>What ellict checks after the model answers</h2>
+  <ul>
+    <li>Every invocation must exist: the command in the manifests, docs, or interface; each subcommand in the docs or help; each HTTP route in the API spec. Anything invented is dropped with the reason recorded.</li>
+    <li>An example that uses a flag found in neither the command's help nor its docs is removed.</li>
+    <li>Several skills on one command are merged into one unless they are different jobs. In your own answer, fill in <code>distinct_job</code> for each extra skill, or it is merged.</li>
+    <li>An answer that leaves one of the four questions blank is dropped.</li>
+    <li>Each command is run with <code>--help</code>.</li>
+    <li>Every example is run for real with no terminal attached: no keyboard, a 15 second timeout, in an empty directory holding only the sample files the answer declared. An example that hangs, waits for a person, or fails is removed, and a skill with no example that runs is not published.</li>
+    <li>Examples may only run the application's command, piped with <code>cat</code>, <code>echo</code>, <code>printf</code>, <code>head</code>, <code>tail</code>, <code>grep</code>, <code>sort</code>, <code>uniq</code>, <code>wc</code>, <code>tr</code>, or <code>cut</code>. Anything else, including <code>;</code>, <code>&amp;&amp;</code>, command substitution, and writes outside the working directory, is never run.</li>
+  </ul>
+
+  <h2>What it works on</h2>
+  <p>Command-line applications written in Python, Node, Go, and Rust, each tested against real public applications. HTTP operations from an OpenAPI spec and documented Make targets become skills too, but ellict records them without running them.</p>
+
+  <h2>Ellict will not</h2>
+  <ul>
+    <li>Push, open a pull request, or create an account.</li>
+    <li>Publish a skill whose command, route, or flags are not in the repository, or whose examples do not run.</li>
+    <li>Compare a skill against similar tools yet.</li>
+  </ul>
+</body>
+</html>

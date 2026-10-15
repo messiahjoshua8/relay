@@ -1,0 +1,81 @@
+{
+  "about": "The jobs an agent actually has for each application. Each example command in a published skill is assigned to the first job whose match regex finds it; a skill's job is the one most of its examples share. ignore: text removed from each command before matching, such as option values that look like selectors. Every required job must be the job of exactly one skill. Two skills with the same job are one job split in two. A skill with no job is reported as extra; a project with no jobs must publish nothing. keep: the application's own entry point must be published by the rules baseline. never: commands that must never become a skill.",
+  "never": ["brew", "pip", "pipx", "mamba", "conda", "npm", "apt", "cat", "go", "cargo"],
+  "max_skills_per_command": 3,
+  "projects": {
+    "rich-cli": {
+      "url": "https://github.com/Textualize/rich-cli",
+      "install": "python",
+      "keep": ["rich"],
+      "jobs": [
+        {"job": "export-rendered-file", "why": "Writing HTML or SVG of code, markdown, or data is the result an agent hands back; terminal rendering is for a person's eyes.", "match": "(?:^|\\s)(?:-o|--export-html|--export-svg)(?=\\s|=|$)"},
+        {"job": "csv-as-table", "required": false, "match": "(?:^|\\s)--csv(?=\\s|$)|\\.csv\\b"},
+        {"job": "render-markdown", "required": false, "match": "(?:^|\\s)(?:-m|--markdown)(?=\\s|$)|\\.md\\b"},
+        {"job": "pretty-json", "required": false, "match": "(?:^|\\s)(?:-J|--json)(?=\\s|$)|\\.json\\b"},
+        {"job": "highlight-code", "required": false, "match": "\\brich\\b"}
+      ]
+    },
+    "files-to-prompt": {
+      "url": "https://github.com/simonw/files-to-prompt",
+      "install": "python",
+      "keep": ["files-to-prompt"],
+      "jobs": [
+        {"job": "bundle-files-for-a-prompt", "why": "One job; XML, Markdown, and filtering are modes of it.", "match": "\\bfiles-to-prompt\\b"}
+      ]
+    },
+    "strip-tags": {
+      "url": "https://github.com/simonw/strip-tags",
+      "install": "python",
+      "keep": ["strip-tags"],
+      "ignore": "(?:^|\\s)(?:-r|--remove|-t|--keep-tag|-i|--input)\\s+\\S+|[<>]\\s*\\S+",
+      "jobs": [
+        {"job": "extract-by-selector", "why": "Starting from a page and wanting only one region is a different job from wanting all of its text.", "match": "(?:^|\\s)--first(?=\\s|$)|\\bstrip-tags\\b(?:\\s+\\S+)*?\\s+['\"]?(?:[.#][A-Za-z]|(?:article|main|body|section|div|table|pre|code|p|h[1-6]|ul|ol|li|span)\\b)"},
+        {"job": "html-to-text", "why": "Removing navigation with -r and minifying are modes of getting clean text.", "match": "\\bstrip-tags\\b"}
+      ]
+    },
+    "ttok": {
+      "url": "https://github.com/simonw/ttok",
+      "install": "python",
+      "keep": ["ttok"],
+      "jobs": [
+        {"job": "truncate-to-token-budget", "why": "Fitting text into a context limit returns shortened text, not a number, and an agent reaches for it for a different reason than counting.", "match": "(?:^|\\s)(?:-t|--truncate)(?=\\s|=|$)"},
+        {"job": "view-token-ids", "required": false, "match": "(?:^|\\s)(?:--encode|--decode|--tokens)(?=\\s|$)"},
+        {"job": "count-tokens", "why": "Checking whether text fits before sending it.", "match": "\\bttok\\b"}
+      ]
+    },
+    "toolong": {
+      "url": "https://github.com/Textualize/toolong",
+      "install": "python",
+      "keep": ["tl"],
+      "why": "No agent jobs. Viewing, tailing, and searching need a person, and --merge with --output-merge saves from inside the viewer, which opens /dev/tty (toolong/cli.py). The right answer is to publish nothing.",
+      "jobs": []
+    },
+    "doctoc": {
+      "url": "https://github.com/thlorenz/doctoc",
+      "install": "node",
+      "keep": ["doctoc"],
+      "jobs": [
+        {"job": "check-toc-is-current", "required": false, "why": "A pass or fail verdict for CI is a different result from rewriting the file.", "match": "(?:^|\\s)--dryrun(?=\\s|$)"},
+        {"job": "update-table-of-contents", "why": "Writing the TOC; stdout, depth, and title options are modes of it.", "match": "\\bdoctoc\\b"}
+      ]
+    },
+    "gron": {
+      "url": "https://github.com/tomnomnom/gron",
+      "install": "go",
+      "keep": ["gron"],
+      "jobs": [
+        {"job": "json-back-from-assignments", "required": false, "match": "(?:^|\\s)(?:-u|--ungron)(?=\\s|$)"},
+        {"job": "find-paths-in-json", "why": "Flattening JSON so grep shows the full path to a value.", "match": "\\bgron\\b"}
+      ]
+    },
+    "sd": {
+      "url": "https://github.com/chmln/sd",
+      "install": "rust",
+      "path": "sd-cli",
+      "keep": ["sd"],
+      "jobs": [
+        {"job": "find-and-replace", "why": "One job; preview, fixed strings, and capture groups are modes of it.", "match": "\\bsd\\b"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "destinations": ["canonical", "cursor", "agents", "registries"],
+  "repository": "ellict/ledger"
+}

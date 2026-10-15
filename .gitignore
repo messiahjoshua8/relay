@@ -1,0 +1,14 @@
+.venv/
+.env
+**/.env
+tests/_tmp/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.ellict/
+.cursor/skills/
+.agents/skills/
+.skillify/

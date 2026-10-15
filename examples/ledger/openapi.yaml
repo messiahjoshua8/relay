@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info:
+  title: Ledger
+  version: 0.1.0
+paths:
+  /entries:
+    post:
+      operationId: createEntry
+      summary: Create an entry
+    get:
+      operationId: listEntries
+      summary: List entries

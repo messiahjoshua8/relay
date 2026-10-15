@@ -1,0 +1,4 @@
+[project]
+name = "ledger"
+version = "0.1.0"
+description = "A tiny ledger used to demonstrate skill extraction."

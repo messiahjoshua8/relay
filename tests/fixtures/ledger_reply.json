@@ -1,0 +1,106 @@
+{
+  "skills": [
+    {
+      "slug": "record-ledger-entries",
+      "title": "Record ledger entries",
+      "description": "Records a text entry in the ledger. Use when the user asks to log, add, or note something in their ledger.",
+      "worthy": "Writing to the ledger is the application's core action.",
+      "would_use": "When the user wants something kept in their ledger rather than in chat.",
+      "how": "Run ledger add with the entry text quoted.",
+      "helps": "Keeps the record in the application instead of an agent-invented file.",
+      "demand": "Every ledger session starts with adding entries.",
+      "agent_gap": "Agents tend to write notes to ad hoc files instead of the user's tool.",
+      "invocation": {"method": "cli", "command": "ledger add"},
+      "prerequisites": ["ledger is runnable from the application root"],
+      "when_to_use": ["The user says to log or add an entry"],
+      "when_not_to_use": ["The user only wants to read entries"],
+      "steps": ["Quote the entry text", "Run ledger add with it", "Report the added line"],
+      "examples": [
+        {"task": "Log that milk was bought", "command": "ledger add \"milk\""},
+        {"task": "Log as JSON", "command": "ledger add milk --json"},
+        {"task": "Log a note from a file", "command": "ledger add --from note.txt"},
+        {"task": "Log a note nobody wrote", "command": "ledger add --from absent.txt"},
+        {"task": "Count what was logged", "command": "ledger add eggs | wc -l"},
+        {"task": "Log and clean up", "command": "ledger add eggs; rm -rf ~/notes"}
+      ],
+      "fixtures": [
+        {"path": "note.txt", "contents": "pay rent\n"},
+        {"path": "../outside.txt", "contents": "never written"}
+      ],
+      "verify": "Output starts with 'added'.",
+      "pitfalls": ["Unquoted text with spaces becomes several arguments"],
+      "sources": ["README.md", "missing.md"]
+    },
+    {
+      "slug": "export-ledger",
+      "title": "Export the ledger",
+      "description": "Exports all entries.",
+      "worthy": "Export would be useful.",
+      "would_use": "When moving data.",
+      "how": "Run ledger export.",
+      "helps": "Moves entries out.",
+      "invocation": {"method": "cli", "command": "ledger export"},
+      "examples": [],
+      "sources": ["README.md"]
+    },
+    {
+      "slug": "create-entry",
+      "title": "Create an entry over HTTP",
+      "description": "Creates a ledger entry through the API. Use when the ledger runs as a service.",
+      "worthy": "The API is the only way to write when the CLI is not on the machine.",
+      "would_use": "When the agent talks to a deployed ledger.",
+      "how": "POST /entries with the entry body.",
+      "helps": "Writes to the service without a shell on that host.",
+      "invocation": {"method": "http", "http_method": "POST", "path": "/entries"},
+      "examples": [],
+      "sources": ["openapi.yaml"]
+    },
+    {
+      "slug": "delete-entry",
+      "title": "Delete an entry",
+      "description": "Deletes an entry.",
+      "worthy": "Cleanup.",
+      "would_use": "When an entry is wrong.",
+      "how": "DELETE /entries.",
+      "helps": "Removes mistakes.",
+      "invocation": {"method": "http", "http_method": "DELETE", "path": "/entries"},
+      "sources": ["openapi.yaml"]
+    },
+    {
+      "slug": "record-ledger-entries-quietly",
+      "title": "Record an entry without echo",
+      "description": "Records an entry with a different example.",
+      "worthy": "Same as recording.",
+      "would_use": "When adding entries.",
+      "how": "ledger add",
+      "helps": "Adds entries.",
+      "distinct_job": "",
+      "invocation": {"method": "cli", "command": "ledger add"},
+      "examples": [{"task": "Log bread", "command": "ledger add bread"}]
+    },
+    {
+      "slug": "browse-ledger",
+      "title": "Browse the ledger",
+      "description": "Opens the entry list for browsing.",
+      "worthy": "Reading entries.",
+      "would_use": "When a person wants to scroll.",
+      "how": "ledger list",
+      "helps": "Shows entries.",
+      "interactive": true,
+      "invocation": {"method": "cli", "command": "ledger list"}
+    },
+    {
+      "slug": "list-ledger",
+      "title": "List entries",
+      "description": "Lists entries.",
+      "worthy": "Reading back.",
+      "would_use": "",
+      "how": "ledger list",
+      "helps": "",
+      "invocation": {"method": "cli", "command": "ledger list"}
+    }
+  ],
+  "rejected": [
+    {"name": "make report", "reason": "A maintainer task, not something an agent is asked to do."}
+  ]
+}

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Runs ellict. Callers do not pass a Python command.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+if [ -d "$ROOT/src/ellict" ]; then
+  PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+  export PYTHONPATH
+fi
+exec python3 -m ellict "$@"

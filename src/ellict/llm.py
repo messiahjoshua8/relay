@@ -162,6 +162,32 @@ def from_env(config: dict | None = None) -> Model | None:
     return None
 
 
+DECISIONS_MODEL = "gpt-6-luna"
+
+
+def decide(text: str, questions: list[dict], *, cache_dir: Path, timeout: int = 60) -> list[dict]:
+    """Ask the OpenAI Decisions API typed questions about ``text``; return its answers."""
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise ModelError("OPENAI_API_KEY is not set")
+    model = os.environ.get("ELLICT_DECISIONS_MODEL") or DECISIONS_MODEL
+    body = {"model": model, "input": text, "questions": questions}
+    digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:24]
+    path = cache_dir / f"decision-{digest}.json"
+    if path.exists() and not os.environ.get("ELLICT_NO_CACHE"):
+        return json.loads(path.read_text(encoding="utf-8"))["response"]["answers"]
+    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    data = Model("openai", model, timeout=timeout)._post(
+        f"{base}/decisions", {"authorization": f"Bearer {key}"}, body
+    )
+    answers = data.get("answers")
+    if not isinstance(answers, list):
+        raise ModelError(f"decisions:{model} returned no answers")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"request": body, "response": data}, indent=2) + "\n", encoding="utf-8")
+    return answers
+
+
 def parse_json(text: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end <= start:

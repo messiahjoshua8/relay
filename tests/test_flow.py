@@ -10,7 +10,7 @@ from unittest import mock
 
 from ellict.cli import main
 from ellict.evidence import load
-from ellict.llm import Model
+from ellict.llm import Model, ModelError
 from ellict.pipeline import SelectionError, run
 
 from helpers import FIXTURES, fresh, scripted_command, without_model_env
@@ -142,6 +142,36 @@ class AgentFlowTest(unittest.TestCase):
         self.assertNotIn(
             "record-ledger-entries-quietly", [d["slug"] for d in result["selection"]["grounding_dropped"]]
         )
+
+    def test_decisions_api_decides_which_skills_are_one_job(self) -> None:
+        os.environ.update(OPENAI_API_KEY="test", ELLICT_DECISIONS="1")
+        asked = []
+
+        def decide(text, questions, cache_dir):
+            asked.append((text, questions))
+            return [{"type": "predicate", "name": q["name"], "probability": 0.91} for q in questions]
+
+        with mock.patch("ellict.agentic.decide", decide):
+            result = run(self.app, select="agent", model=self.model)
+        text, questions = asked[0]
+        self.assertIn("These skills all run `ledger add`", text)
+        self.assertEqual(questions[0]["type"], "predicate")
+        self.assertIn("`record-ledger-entries` and `record-ledger-entries-quietly`", questions[0]["instructions"])
+        dropped = {item["slug"]: item["reason"] for item in result["selection"]["grounding_dropped"]}
+        self.assertIn("Decisions API, same job", dropped["record-ledger-entries-quietly"])
+        self.assertIn("p=0.91", dropped["record-ledger-entries-quietly"])
+        self.assertFalse(list(self.log.glob("review-*.txt")))
+
+    def test_decisions_api_failure_falls_back_to_the_model_review(self) -> None:
+        os.environ.update(OPENAI_API_KEY="test", ELLICT_DECISIONS="1")
+        self._review([
+            {"skills": ["record-ledger-entries"], "why": "log an entry"},
+            {"skills": ["record-ledger-entries-quietly"], "why": "a different result"},
+        ])
+        with mock.patch("ellict.agentic.decide", side_effect=ModelError("decisions unavailable")):
+            result = run(self.app, select="agent", model=self.model)
+        self.assertIn("record-ledger-entries-quietly", result["approved"])
+        self.assertTrue((self.log / "review-1.txt").exists())
 
     def test_agent_answers_the_prompt_itself_without_an_api_key(self) -> None:
         out = StringIO()

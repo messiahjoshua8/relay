@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import Callable
 from pathlib import Path
 
 from ellict.extract import DOC_SUFFIXES, PROMPT_PREFIX, SKIP_DIRS, _rel, extract, slugify
 from ellict.headless import problem, segments
-from ellict.llm import Model, ModelError, ask
+from ellict.llm import Model, ModelError, ask, decide
 from ellict.models import Capability, Invocation
 from ellict.validate import help_text
 
@@ -235,17 +236,20 @@ def _truthy(value: object) -> bool:
     return value is True or str(value).strip().lower() in {"true", "yes", "1"}
 
 
-REVIEW_SYSTEM = """You decide whether skills that run the same command are separate agent jobs.
+REVIEW_RULE = """Two skills are the same job when an agent would reach for them for the same reason and gets the same kind of result. Differences in where input comes from, output format, previewing versus applying, or matching options are modes of one job. They are different jobs when the kind of result differs: a measurement versus rewritten content, a pass or fail verdict versus a rewritten file, or a whole document versus one extracted part."""
 
-Two skills are the same job when an agent would reach for them for the same reason and gets the same kind of result. Differences in where input comes from, output format, previewing versus applying, or matching options are modes of one job. They are different jobs when the kind of result differs: a measurement versus rewritten content, a pass or fail verdict versus a rewritten file, or a whole document versus one extracted part.
+REVIEW_SYSTEM = f"""You decide whether skills that run the same command are separate agent jobs.
+
+{REVIEW_RULE}
 
 Respond with one JSON object and nothing else."""
+SAME_JOB_THRESHOLD = 0.5
 
 Review = Callable[[str, list[Capability]], "list[dict] | None"]
 
 
-def review_prompt(command: str, capabilities: list[Capability]) -> str:
-    skills = [
+def _review_skills(capabilities: list[Capability]) -> list[dict]:
+    return [
         {
             "slug": c.slug,
             "description": c.summary,
@@ -253,6 +257,55 @@ def review_prompt(command: str, capabilities: list[Capability]) -> str:
         }
         for c in capabilities
     ]
+
+
+def decisions_review(cache_dir: Path, fallback: Review | None) -> Review:
+    """Ask the Decisions API, for each pair of skills on a command, whether they are one job."""
+
+    def review(command: str, capabilities: list[Capability]) -> list[dict] | None:
+        pairs = [(a, b) for i, a in enumerate(capabilities) for b in capabilities[i + 1 :]]
+        text = f"{REVIEW_RULE}\n\nThese skills all run `{command}`:\n{json.dumps(_review_skills(capabilities), indent=1)}"
+        questions = [
+            {
+                "type": "predicate",
+                "name": f"same_job_{index}",
+                "instructions": f"Do `{a.slug}` and `{b.slug}` give the agent the same kind of result (for example, both rewritten content, or both a measurement), even if format or input differ?",
+            }
+            for index, (a, b) in enumerate(pairs)
+        ]
+        try:
+            answers = decide(text, questions, cache_dir=cache_dir)
+        except ModelError:
+            return fallback(command, capabilities) if fallback else None
+        probability = {
+            a.get("name"): float(a.get("probability") or 0) for a in answers if isinstance(a, dict)
+        }
+        threshold = float(os.environ.get("ELLICT_SAME_JOB_THRESHOLD") or SAME_JOB_THRESHOLD)
+        parent = {c.slug: c.slug for c in capabilities}
+
+        def find(slug: str) -> str:
+            while parent[slug] != slug:
+                slug = parent[slug]
+            return slug
+
+        links = []
+        for index, (a, b) in enumerate(pairs):
+            p = probability.get(f"same_job_{index}", 0.0)
+            if p >= threshold:
+                links.append(f"{a.slug} and {b.slug}: p={p:.2f}")
+                roots = sorted([find(a.slug), find(b.slug)], key=[c.slug for c in capabilities].index)
+                parent[roots[1]] = roots[0]
+        groups: dict[str, list[str]] = {}
+        for capability in capabilities:
+            groups.setdefault(find(capability.slug), []).append(capability.slug)
+        why = "Decisions API, same job " + "; ".join(links) if links else ""
+        return [{"skills": slugs, "why": why} for slugs in groups.values()]
+
+    return review
+
+
+def review_prompt(command: str, capabilities: list[Capability]) -> str:
+    skills = _review_skills(capabilities)
     shape = {"jobs": [{"skills": ["slugs that are one job; the first is the one to keep"], "why": "the job, in one sentence"}]}
     return (
         f"These skills all run `{command}`:\n{json.dumps(skills, indent=1)}\n\n"
@@ -434,7 +487,11 @@ def select(root: Path, model: Model) -> tuple[list[Capability], dict]:
         raise ModelError("no documentation or interface found to read")
     cache_dir = root / ".ellict" / "model"
     answer, key, cached = ask(model, SYSTEM, prompt(evidence), cache_dir=cache_dir)
-    review = None if model.provider == "answer" else model_review(model, cache_dir)
+    review = None
+    if model.provider != "answer":
+        review = model_review(model, cache_dir)
+        if os.environ.get("OPENAI_API_KEY") and os.environ.get("ELLICT_DECISIONS") == "1":
+            review = decisions_review(cache_dir, fallback=review)
     kept, dropped = ground(answer, evidence, root, review)
     record = {
         "model": model.spec,
